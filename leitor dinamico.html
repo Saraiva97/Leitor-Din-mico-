@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Leitor Dinâmico</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      transition: background 0.3s, color 0.3s;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    body.dark {
+      background-color: #111;
+      color: #eee;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    #reader {
+      font-size: 60px;
+      margin: 30px 0 10px;
+      min-width: 300px;
+      text-align: center;
+      transition: font-family 0.3s, font-size 0.3s;
+    }
+
+    .controls, .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin: 10px;
+      justify-content: center;
+    }
+
+    label {
+      font-weight: bold;
+    }
+
+    select, input[type=number], input[type=range], textarea {
+      padding: 5px;
+    }
+
+    #fileInput, #textInput {
+      margin-bottom: 15px;
+    }
+
+    #textInput {
+      width: 90%;
+      max-width: 600px;
+      height: 100px;
+    }
+
+    button {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+
+    .stats {
+      margin-top: 10px;
+      font-size: 16px;
+      text-align: center;
+    }
+
+    footer {
+      margin-top: auto;
+      text-align: center;
+      font-size: 14px;
+      color: #777;
+      width: 100%;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 10px;
+      background-color: #ccc;
+      margin-top: 15px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      background-color: #4caf50;
+    }
+
+    #fileName {
+      margin-top: 5px;
+      font-style: italic;
+    }
+
+    /* Elementos que serão ocultados no modo tela cheia */
+    .normal-mode {
+      transition: opacity 0.3s;
+    }
+
+    /* Elementos do modo tela cheia */
+    .fullscreen-mode {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: inherit;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    #reader.fullscreen {
+      font-size: 80px;
+      margin: 20px 0;
+    }
+
+    /* Responsividade para dispositivos móveis */
+    @media screen and (max-width: 600px) {
+      #reader {
+        font-size: 36px;
+        min-width: 100%;
+        margin: 10px 0;
+        padding: 10px;
+      }
+
+      #reader.fullscreen {
+        font-size: 48px;
+      }
+
+      .controls, .stats {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+      }
+
+      button {
+        width: 100%;
+        margin-top: 10px;
+      }
+
+      .stats {
+        font-size: 12px;
+        margin-top: 5px;
+        line-height: 1.2;
+        white-space: nowrap;
+        word-spacing: 2px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="normal-mode">
+    <h1>📖 Leitor Dinâmico</h1>
+
+    <div class="controls">
+      <label>
+        <select id="inputMode">
+          <option value="pdf">📄 PDF</option>
+          <option value="manual">📝 Texto Manual</option>
+        </select>
+      </label>
+      <button onclick="toggleTheme()">🌗 Alternar Tema</button>
+      <button onclick="reset()">🧹 Limpar</button>
+      <button onclick="toggleFullscreen()">🖥️ Tela Cheia</button>
+    </div>
+
+    <input type="file" id="fileInput" accept="application/pdf" style="display:none;" />
+    <textarea id="textInput" placeholder="Cole seu texto aqui..." style="display:none;"></textarea>
+    <p id="fileName"></p>
+
+    <div class="controls">
+      <label>Velocidade: <input type="range" id="speedSlider" min="100" max="2000" value="500"></label>
+      <label>Início: <input type="number" id="startIndex" min="0" value="0"></label>
+      <label>Fonte:
+        <select id="fontSelector">
+          <option value="Arial">Arial</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Courier New">Courier New</option>
+          <option value="Verdana">Verdana</option>
+        </select>
+      </label>
+      <label>Tamanho da Fonte: <input type="range" id="fontSizeSlider" min="30" max="100" value="60"></label>
+      <button id="startButton" onclick="startReading()">▶ Iniciar</button>
+      <button id="pauseButton" onclick="pauseResume()">⏸ Pausar</button>
+      <button onclick="stopReading()">⏹ Parar</button>
+      <button onclick="goBackWord()">◀ Retroceder Palavra</button>
+      <button onclick="goForwardWord()">▶ Avançar Palavra</button>
+    </div>
+  </div>
+
+  <div class="fullscreen-mode">
+    <div id="reader" class="fullscreen">Texto aqui</div>
+    <button onclick="toggleFullscreen()" style="margin-top: 20px; padding: 10px 20px;">Sair da Tela Cheia</button>
+  </div>
+
+  <div class="normal-mode">
+    <div class="progress-bar-container">
+      <div id="progressBar" class="progress-bar"></div>
+    </div>
+
+    <div class="stats">
+      Palavra atual: <span id="currentWord">0</span> / <span id="totalWords">0</span>
+    </div>
+
+    <footer>
+      © 2025 Saraiva Company
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+
+  <script>
+    let words = [];
+    let currentIndex = 0;
+    let interval;
+    let speed = 500;
+    let isPaused = false;
+    let isReadingComplete = false;
+    let wordHistory = [];
+    let isFullscreen = false;
+    
+    const fileInput = document.getElementById("fileInput");
+    const textInput = document.getElementById("textInput");
+    const readerDiv = document.getElementById("reader");
+    const currentWordSpan = document.getElementById("currentWord");
+    const totalWordsSpan = document.getElementById("totalWords");
+    const speedSlider = document.getElementById("speedSlider");
+    const startIndexInput = document.getElementById("startIndex");
+    const fontSelector = document.getElementById("fontSelector");
+    const fontSizeSlider = document.getElementById("fontSizeSlider");
+    const progressBar = document.getElementById("progressBar");
+    const inputMode = document.getElementById("inputMode");
+    const fileNameDisplay = document.getElementById("fileName");
+    const startButton = document.getElementById("startButton");
+    const pauseButton = document.getElementById("pauseButton");
+    const normalModeElements = document.querySelectorAll('.normal-mode');
+    const fullscreenModeElement = document.querySelector('.fullscreen-mode');
+    const fullscreenReader = document.querySelector('#reader.fullscreen');
+
+    inputMode.addEventListener("change", () => {
+      if (inputMode.value === "pdf") {
+        fileInput.style.display = "block";
+        textInput.style.display = "none";
+      } else {
+        fileInput.style.display = "none";
+        textInput.style.display = "block";
+      }
+      localStorage.setItem("inputMode", inputMode.value);
+      reset();
+    });
+
+    textInput.addEventListener("input", () => {
+      loadWords(textInput.value);
+    });
+
+    speedSlider.addEventListener("input", () => {
+      speed = parseInt(speedSlider.value);
+      if (interval && !isPaused) {
+        clearInterval(interval);
+        interval = setInterval(readWord, speed);
+      }
+    });
+
+    fontSelector.addEventListener("change", () => {
+      readerDiv.style.fontFamily = fontSelector.value;
+      fullscreenReader.style.fontFamily = fontSelector.value;
+      localStorage.setItem("font", fontSelector.value);
+    });
+
+    fontSizeSlider.addEventListener("input", () => {
+      const size = fontSizeSlider.value + "px";
+      readerDiv.style.fontSize = size;
+      fullscreenReader.style.fontSize = `calc(${size} * 1.5)`;
+      localStorage.setItem("fontSize", size);
+    });
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (file.type !== "application/pdf") {
+        alert("Por favor, selecione um PDF.");
+        return;
+      }
+      fileNameDisplay.textContent = "Arquivo: " + file.name;
+      const fileReader = new FileReader();
+      fileReader.onload = async function () {
+        const typedarray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const text = content.items.map(item => item.str).join(' ');
+          fullText += text + ' ';
+        }
+        loadWords(fullText);
+      };
+      fileReader.readAsArrayBuffer(file);
+    });
+
+    function loadWords(text) {
+      words = text.trim().match(/\S+/g) || [];
+      totalWordsSpan.textContent = words.length;
+      currentIndex = parseInt(startIndexInput.value) || 0;
+      currentWordSpan.textContent = currentIndex + 1;
+      const displayText = words[currentIndex] || '...';
+      readerDiv.textContent = displayText;
+      fullscreenReader.textContent = displayText;
+      wordHistory.push(words[currentIndex]);
+      updateProgressBar();
+    }
+
+    function updateProgressBar() {
+      const progress = (currentIndex / words.length) * 100;
+      progressBar.style.width = progress + "%";
+    }
+
+    function readWord() {
+      if (isPaused || isReadingComplete) return;
+
+      if (currentIndex >= words.length) {
+        stopReading();
+        const completionText = "Leitura Concluída!";
+        readerDiv.textContent = completionText;
+        fullscreenReader.textContent = completionText;
+        readerDiv.style.color = "green";
+        fullscreenReader.style.color = "green";
+        alert("Leitura Concluída!");
+        if (confirm("Deseja reiniciar?")) {
+          reset();
+          startReading();
+        }
+        return;
+      }
+
+      const currentWord = words[currentIndex];
+      readerDiv.textContent = currentWord;
+      fullscreenReader.textContent = currentWord;
+      readerDiv.style.color = isPaused ? "red" : "inherit";
+      fullscreenReader.style.color = isPaused ? "red" : "inherit";
+      currentWordSpan.textContent = currentIndex + 1;
+      startIndexInput.value = currentIndex;
+      localStorage.setItem("lastIndex", currentIndex);
+      wordHistory.push(words[currentIndex]);
+      currentIndex++;
+      updateProgressBar();
+    }
+
+    function startReading() {
+      if (inputMode.value === "manual") {
+        const text = textInput.value;
+        if (!text.trim()) {
+          alert("Cole algum texto para começar.");
+          return;
+        }
+        loadWords(text);
+      }
+
+      currentIndex = parseInt(startIndexInput.value) || 0;
+      if (currentIndex >= words.length) currentIndex = 0;
+      isPaused = false;
+      isReadingComplete = false;
+      pauseButton.textContent = "⏸ Pausar";
+      readerDiv.style.color = "inherit";
+      fullscreenReader.style.color = "inherit";
+
+      interval = setInterval(readWord, speed);
+    }
+
+    function stopReading() {
+      clearInterval(interval);
+      isPaused = false;
+      pauseButton.textContent = "⏸ Pausar";
+      readerDiv.style.color = "inherit";
+      fullscreenReader.style.color = "inherit";
+    }
+
+    function pauseResume() {
+      isPaused = !isPaused;
+      pauseButton.textContent = isPaused ? "▶ Continuar" : "⏸ Pausar";
+      readerDiv.style.color = isPaused ? "red" : "inherit";
+      fullscreenReader.style.color = isPaused ? "red" : "inherit";
+    }
+
+    function goBackWord() {
+      currentIndex = Math.max(0, currentIndex - 1);
+      const word = words[currentIndex];
+      readerDiv.textContent = word;
+      fullscreenReader.textContent = word;
+      currentWordSpan.textContent = currentIndex + 1;
+      startIndexInput.value = currentIndex;
+      localStorage.setItem("lastIndex", currentIndex);
+      updateProgressBar();
+    }
+
+    function goForwardWord() {
+      currentIndex = Math.min(words.length - 1, currentIndex + 1);
+      const word = words[currentIndex];
+      readerDiv.textContent = word;
+      fullscreenReader.textContent = word;
+      currentWordSpan.textContent = currentIndex + 1;
+      startIndexInput.value = currentIndex;
+      localStorage.setItem("lastIndex", currentIndex);
+      updateProgressBar();
+    }
+
+    function reset() {
+      stopReading();
+      words = [];
+      currentIndex = 0;
+      currentWordSpan.textContent = 0;
+      totalWordsSpan.textContent = 0;
+      readerDiv.textContent = 'Texto aqui';
+      fullscreenReader.textContent = 'Texto aqui';
+      wordHistory = [];
+      startIndexInput.value = 0;
+      fileNameDisplay.textContent = "";
+      fileInput.value = "";
+      textInput.value = "";
+      progressBar.style.width = "0%";
+      localStorage.removeItem("lastIndex");
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('dark');
+      localStorage.setItem("theme", document.body.classList.contains('dark') ? "dark" : "light");
+    }
+
+    function toggleFullscreen() {
+      isFullscreen = !isFullscreen;
+      
+      if (isFullscreen) {
+        // Entrar no modo tela cheia
+        normalModeElements.forEach(el => el.style.display = 'none');
+        fullscreenModeElement.style.display = 'flex';
+        
+        // Atualizar o texto exibido
+        fullscreenReader.textContent = readerDiv.textContent;
+        fullscreenReader.style.fontFamily = readerDiv.style.fontFamily;
+        fullscreenReader.style.color = readerDiv.style.color;
+        
+        // Aplicar tema
+        if (document.body.classList.contains('dark')) {
+          fullscreenModeElement.style.backgroundColor = '#111';
+          fullscreenModeElement.style.color = '#eee';
+        } else {
+          fullscreenModeElement.style.backgroundColor = '#f4f4f4';
+          fullscreenModeElement.style.color = '#333';
+        }
+      } else {
+        // Sair do modo tela cheia
+        normalModeElements.forEach(el => el.style.display = '');
+        fullscreenModeElement.style.display = 'none';
+      }
+    }
+
+    window.addEventListener("load", () => {
+      const savedIndex = localStorage.getItem("lastIndex");
+      const savedTheme = localStorage.getItem("theme");
+      const savedFont = localStorage.getItem("font");
+      const savedFontSize = localStorage.getItem("fontSize");
+      const savedMode = localStorage.getItem("inputMode");
+
+      if (savedIndex) startIndexInput.value = savedIndex;
+      if (savedTheme === "dark") document.body.classList.add("dark");
+      if (savedFont) {
+        fontSelector.value = savedFont;
+        readerDiv.style.fontFamily = savedFont;
+        fullscreenReader.style.fontFamily = savedFont;
+      }
+      if (savedFontSize) {
+        readerDiv.style.fontSize = savedFontSize;
+        fullscreenReader.style.fontSize = `calc(${savedFontSize} * 1.5)`;
+        fontSizeSlider.value = parseInt(savedFontSize);
+      }
+      if (savedMode) {
+        inputMode.value = savedMode;
+        inputMode.dispatchEvent(new Event("change"));
+      }
+    });
+  </script>
+</body>
+</html>
