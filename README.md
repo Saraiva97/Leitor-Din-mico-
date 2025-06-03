@@ -1,1 +1,1 @@
-# Leitor-Din-mico-
+# Leitor-Dinamico-
